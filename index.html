@@ -200,14 +200,16 @@ input:focus,select:focus,textarea:focus{border-color:#2563eb;}
       <div class="card" style="padding:0;overflow:hidden;"><table class="tbl"><thead><tr><th>Código</th><th>Insumo</th><th>Categoría</th><th>Stock Actual</th><th>Stock Mínimo</th><th>Punto Reorden</th><th>Lead Time</th><th>Estado</th></tr></thead><tbody id="insumos-tbody"></tbody></table></div>
     </div>
     <div id="sec-bom" style="display:none;">
-      <div class="brand" style="font-size:20px;font-weight:800;color:#0f172a;margin-bottom:4px;">BOM — Recetas de Producción</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;"><div class="brand" style="font-size:20px;font-weight:800;color:#0f172a;">BOM — Recetas de Producción</div><button class="btn-primary" onclick="openBomModal()">+ Agregar Componente</button></div>
       <div style="font-size:13px;color:#64748b;margin-bottom:16px;">Bill of Materials por SKU. Base para cálculo de MRP.</div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;" id="bom-skus"></div>
       <div class="card" style="padding:0;overflow:hidden;"><table class="tbl"><thead><tr><th>SKU</th><th>Proceso</th><th>Componente</th><th>Tipo</th><th>Cantidad/kg</th><th>Unidad</th><th>Merma Téc.%</th><th>Costo Unit.</th></tr></thead><tbody id="bom-tbody"></tbody></table></div>
     </div>
     <div id="sec-equipos" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;"><div><div class="brand" style="font-size:20px;font-weight:800;color:#0f172a;">Equipos & Mantenimiento</div><div style="font-size:13px;color:#64748b;margin-top:2px;">Activos de planta, estado y mantenimiento predictivo</div></div><button class="btn-primary" onclick="showToast('⚙️ Funcionalidad: Registrar mantenimiento')">+ Registrar Mantenimiento</button></div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;" id="equipo-cards"></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;" id="equipo-cards"></div>
+      <div style="font-size:13px;font-weight:700;color:#64748b;letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px;margin-top:4px;">📋 Historial de Mantenimiento</div>
+      <div id="mant-list"></div>
     </div>
     <div id="sec-aprobaciones" style="display:none;">
       <div class="brand" style="font-size:20px;font-weight:800;color:#0f172a;margin-bottom:4px;">Centro de Aprobaciones</div>
@@ -306,9 +308,341 @@ input:focus,select:focus,textarea:focus{border-color:#2563eb;}
   </div>
 </div>
 
+
+<!-- Modal Gantt Edit -->
+<div id="modal-gantt" style="display:none;" class="modal-bg">
+  <div class="modal" style="max-width:420px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div class="brand" style="font-size:16px;font-weight:800;color:#0f172a;">Actualizar Tarea Gantt</div>
+      <button onclick="document.getElementById('modal-gantt').style.display='none'" style="background:#f1f5f9;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:16px;">✕</button>
+    </div>
+    <div style="background:#f8fafc;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;font-weight:700;color:#1d4ed8;" id="ge-tarea">Tarea</div>
+    <div style="display:grid;gap:12px;">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Avance %</label>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input id="ge-avance" type="range" min="0" max="100" step="5" value="0" style="flex:1;border:none;padding:4px 0;" oninput="document.getElementById('ge-avance-num').textContent=this.value+'%'">
+          <span id="ge-avance-num" style="font-size:18px;font-weight:800;color:#1d4ed8;min-width:48px;">0%</span>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Estado</label>
+        <select id="ge-estado">
+          <option value="pendiente">Pendiente</option>
+          <option value="en_curso">En curso</option>
+          <option value="completado">Completado</option>
+          <option value="retrasado">Retrasado</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Responsable</label>
+        <input id="ge-responsable" type="text" placeholder="Nombre del responsable">
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input id="ge-critica" type="checkbox">
+        <label style="font-size:13px;font-weight:600;color:#1e293b;">⚡ Tarea en ruta crítica</label>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">
+      <button class="btn-outline" onclick="document.getElementById('modal-gantt').style.display='none'">Cancelar</button>
+      <button class="btn-primary" onclick="saveGanttEdit()">💾 Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Insumo -->
+<div id="modal-insumo" style="display:none;" class="modal-bg">
+  <div class="modal" style="max-width:480px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div class="brand" style="font-size:16px;font-weight:800;color:#0f172a;">Agregar Insumo</div>
+      <button onclick="document.getElementById('modal-insumo').style.display='none'" style="background:#f1f5f9;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:16px;">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Código</label><input id="ins-codigo" type="text" placeholder="INS-009 (auto si vacío)"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Categoría *</label>
+        <select id="ins-cat"><option value="empaque">Empaque</option><option value="quimico">Químico</option><option value="repuesto">Repuesto</option><option value="otro">Otro</option></select></div>
+      <div style="grid-column:span 2;"><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Nombre del Insumo *</label><input id="ins-nombre" type="text" placeholder="Ej: Cajas Exportación 10kg"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Subcategoría</label><input id="ins-subcat" type="text" placeholder="cajas, bolsas, film…"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Unidad *</label>
+        <select id="ins-unidad"><option value="un">un</option><option value="kg">kg</option><option value="L">L</option><option value="rollo">rollo</option><option value="caja">caja</option><option value="m">m</option></select></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Stock Actual *</label><input id="ins-stock" type="number" placeholder="0"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Stock Mínimo</label><input id="ins-stock-min" type="number" placeholder="0"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Punto de Reorden</label><input id="ins-reorden" type="number" placeholder="0"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Costo Unitario $</label><input id="ins-costo" type="number" step="0.0001" placeholder="0.00"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Proveedor Principal</label><input id="ins-proveedor" type="text" placeholder="Nombre del proveedor"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Lead Time (días)</label><input id="ins-lead" type="number" value="7" placeholder="7"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">
+      <button class="btn-outline" onclick="document.getElementById('modal-insumo').style.display='none'">Cancelar</button>
+      <button class="btn-primary" onclick="saveInsumo()">💾 Guardar Insumo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal BOM -->
+<div id="modal-bom" style="display:none;" class="modal-bg">
+  <div class="modal" style="max-width:500px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div class="brand" style="font-size:16px;font-weight:800;color:#0f172a;">Agregar Componente BOM</div>
+      <button onclick="document.getElementById('modal-bom').style.display='none'" style="background:#f1f5f9;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:16px;">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Código SKU *</label><input id="bom-sku-codigo" type="text" placeholder="SKU-TC-250"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Proceso</label>
+        <select id="bom-proceso"><option value="fresco">Fresco</option><option value="preparado">Preparado</option><option value="deshidratado">Deshidratado</option><option value="liofilizado">Liofilizado</option><option value="congelado">Congelado IQF</option><option value="maquila">Maquila</option></select></div>
+      <div style="grid-column:span 2;"><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Nombre SKU *</label><input id="bom-sku-nombre" type="text" placeholder="Ej: Tomate Cherry Export 250g"></div>
+      <div style="grid-column:span 2;"><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Componente / Insumo *</label><input id="bom-componente" type="text" placeholder="Ej: Bolsas Export Bilaminadas 250g"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Tipo *</label>
+        <select id="bom-tipo-comp"><option value="materia_prima">Materia Prima</option><option value="insumo_empaque">Insumo / Empaque</option><option value="quimico">Químico</option><option value="energia">Energía</option><option value="mano_obra">Mano de Obra</option></select></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Unidad</label>
+        <select id="bom-unidad"><option value="kg">kg</option><option value="un">un</option><option value="L">L</option><option value="kWh">kWh</option><option value="jornada">jornada</option><option value="m">m</option></select></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Cantidad por kg *</label><input id="bom-cantidad" type="number" step="0.0001" placeholder="1.18"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Merma Técnica %</label><input id="bom-merma" type="number" step="0.1" placeholder="0" value="0"></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Costo Unitario $</label><input id="bom-costo" type="number" step="0.0001" placeholder="0.00"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">
+      <button class="btn-outline" onclick="document.getElementById('modal-bom').style.display='none'">Cancelar</button>
+      <button class="btn-primary" onclick="saveBOM()">💾 Guardar Componente</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Mantenimiento -->
+<div id="modal-mant" style="display:none;" class="modal-bg">
+  <div class="modal" style="max-width:480px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div class="brand" style="font-size:16px;font-weight:800;color:#0f172a;">Registrar Mantenimiento</div>
+      <button onclick="document.getElementById('modal-mant').style.display='none'" style="background:#f1f5f9;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:16px;">✕</button>
+    </div>
+    <div style="display:grid;gap:12px;">
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Equipo *</label><select id="mant-equipo"><option value="">— Cargando equipos… —</option></select></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Tipo de Mantenimiento *</label>
+        <select id="mant-tipo"><option value="preventivo">Preventivo</option><option value="correctivo">Correctivo</option><option value="predictivo">Predictivo</option></select></div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Descripción del trabajo *</label><textarea id="mant-desc" rows="3" placeholder="Describe el trabajo a realizar o falla detectada…"></textarea></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Fecha Programada</label><input id="mant-fecha" type="datetime-local"></div>
+        <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Duración Est. (hrs)</label><input id="mant-duracion" type="number" step="0.5" placeholder="2"></div>
+        <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Costo Estimado $</label><input id="mant-costo" type="number" placeholder="0"></div>
+        <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Técnico Asignado</label><input id="mant-tecnico" type="text" placeholder="Nombre del técnico"></div>
+      </div>
+      <div><label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Impacto Comercial</label><input id="mant-impacto" type="text" placeholder="Ej: Línea 1 parada 3h — sin impacto en pedidos urgentes"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">
+      <button class="btn-outline" onclick="document.getElementById('modal-mant').style.display='none'">Cancelar</button>
+      <button class="btn-primary" onclick="saveMant()">💾 Programar Mantenimiento</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast-msg" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#0f172a;color:#fff;padding:10px 22px;border-radius:25px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:all .3s;white-space:nowrap;pointer-events:none;"></div>
 
 <script>
+SIM.mantenimiento = [
+  {mant_id:'sim-m-001',equip_id:'sim-eq-004',tipo:'correctivo',descripcion:'Falla mecánica en selladora. Revisión de rodamientos y banda transportadora.',estado:'en_curso',fecha_programada:new Date().toISOString(),fecha_inicio:new Date(Date.now()-28800000).toISOString(),fecha_fin:null,duracion_horas:6,costo_estimado:280,costo_real:null,tecnico:'Ing. Mecánico Roberto',contratos_en_riesgo:['OP-2026-001'],impacto_comercial:'Riesgo atraso 6h en despacho de Tomate Cherry',resuelto_por:null,agro_equipos:{nombre:'Empacadora Flow-Pack L1',codigo:'EQ-004'}},
+  {mant_id:'sim-m-002',equip_id:'sim-eq-003',tipo:'predictivo',descripcion:'Sensor de vibración detecta patrón inusual. Revisión de rodamiento principal del compresor.',estado:'programado',fecha_programada:new Date(Date.now()+86400000).toISOString(),fecha_inicio:null,fecha_fin:null,duracion_horas:3,costo_estimado:150,costo_real:null,tecnico:'Ing. Mecánico Roberto',contratos_en_riesgo:[],impacto_comercial:'Turno valle — sin impacto en producción',resuelto_por:null,agro_equipos:{nombre:'Túnel IQF Congelado',codigo:'EQ-003'}},
+  {mant_id:'sim-m-003',equip_id:'sim-eq-001',tipo:'preventivo',descripcion:'Mantenimiento preventivo trimestral. Limpieza de filtros, lubricación y calibración.',estado:'completado',fecha_programada:new Date(Date.now()-864000000).toISOString(),fecha_inicio:new Date(Date.now()-864000000).toISOString(),fecha_fin:new Date(Date.now()-857600000).toISOString(),duracion_horas:4,costo_estimado:120,costo_real:115,tecnico:'Técnico Juan Pérez',contratos_en_riesgo:[],impacto_comercial:'Ninguno',resuelto_por:'Ing. Mecánico Roberto',agro_equipos:{nombre:'Línea Lavado Hidro L1',codigo:'EQ-001'}},
+];
+
+async function loadMantenimiento(){
+  var r=await db.from('agro_mantenimiento_log').select('*,agro_equipos(nombre,codigo)').order('fecha_programada',{ascending:false}).limit(30);
+  var data=r.data&&r.data.length?r.data:SIM.mantenimiento;
+  var el=document.getElementById('mant-list');
+  if(!el)return;
+  el.innerHTML=data.map(function(m){
+    var eqNombre=(m.agro_equipos&&m.agro_equipos.nombre)||'—';
+    var stColor=m.estado==='completado'?'#16a34a':m.estado==='en_curso'?'#2563eb':m.estado==='programado'?'#d97706':'#ef4444';
+    var stBadge=m.estado==='completado'?'ok':m.estado==='en_curso'?'blue':m.estado==='programado'?'warn':'crit';
+    return '<div class="card" style="margin-bottom:10px;border-left:3px solid '+stColor+';">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">'+
+        '<div>'+
+          '<div class="brand" style="font-size:15px;font-weight:800;color:#0f172a;">'+eqNombre+'</div>'+
+          '<div style="font-size:11px;color:#64748b;margin-top:2px;">'+m.tipo.toUpperCase()+' · Técnico: '+(m.tecnico||'—')+'</div>'+
+        '</div>'+
+        '<span class="badge badge-'+stBadge+'">'+m.estado+'</span>'+
+      '</div>'+
+      '<div style="font-size:13px;color:#1e293b;margin-bottom:8px;">'+m.descripcion+'</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:12px;">'+
+        '<div style="background:#f8fafc;border-radius:6px;padding:6px;"><div style="color:#94a3b8;font-size:10px;font-weight:600;">DURACIÓN</div><div style="font-weight:700;">'+(m.duracion_horas||'—')+'h</div></div>'+
+        '<div style="background:#f8fafc;border-radius:6px;padding:6px;"><div style="color:#94a3b8;font-size:10px;font-weight:600;">COSTO EST.</div><div style="font-weight:700;color:#1d4ed8;">$'+(m.costo_estimado||0).toFixed(0)+'</div></div>'+
+        '<div style="background:#f8fafc;border-radius:6px;padding:6px;"><div style="color:#94a3b8;font-size:10px;font-weight:600;">FECHA PROG.</div><div style="font-weight:700;">'+(m.fecha_programada?new Date(m.fecha_programada).toLocaleDateString('es-SV'):'—')+'</div></div>'+
+      '</div>'+
+      (m.impacto_comercial&&m.impacto_comercial!=='Ninguno'?'<div style="margin-top:8px;padding:6px 10px;background:#fef3c7;border-radius:6px;font-size:11px;color:#92400e;font-weight:600;">⚠ Impacto: '+m.impacto_comercial+'</div>':'')+
+    '</div>';
+  }).join('');
+}
+
+function openMantModal(){
+  // Populate equipment dropdown
+  var sel=document.getElementById('mant-equipo');
+  if(sel){
+    sel.innerHTML='<option value="">— Seleccionar equipo —</option>'+
+      EQUIPOS.map(function(e){return '<option value="'+e.equip_id+'">'+e.nombre+' ('+e.codigo+')</option>';}).join('');
+  }
+  document.getElementById('modal-mant').style.display='flex';
+}
+
+async function saveMant(){
+  var equip_id=_v('mant-equipo');
+  var desc=_v('mant-desc');
+  if(!equip_id||!desc){showToast('⚠ Selecciona equipo y describe el trabajo','#ef4444');return;}
+  var r=await db.from('agro_mantenimiento_log').insert(_clean({
+    equip_id:equip_id,
+    tipo:_v('mant-tipo'),
+    descripcion:desc,
+    estado:'programado',
+    fecha_programada:_v('mant-fecha')||new Date().toISOString(),
+    duracion_horas:_n('mant-duracion'),
+    costo_estimado:_n('mant-costo'),
+    tecnico:_v('mant-tecnico')||null,
+    impacto_comercial:_v('mant-impacto')||null,
+    tenant_id:'hidroexpo'
+  }));
+  if(!r.error){
+    showToast('✅ Mantenimiento programado');
+    document.getElementById('modal-mant').style.display='none';
+    loadMantenimiento();
+    addAudit('crear','equipos','Mantenimiento '+_v('mant-tipo')+' programado para '+equip_id);
+  } else {
+    var eq=EQUIPOS.find(function(e){return e.equip_id===equip_id;});
+    SIM.mantenimiento.unshift({mant_id:'sim-m-new-'+Date.now(),equip_id:equip_id,
+      tipo:_v('mant-tipo'),descripcion:desc,estado:'programado',
+      fecha_programada:_v('mant-fecha')||new Date().toISOString(),
+      duracion_horas:_n('mant-duracion'),costo_estimado:_n('mant-costo'),
+      tecnico:_v('mant-tecnico')||'—',impacto_comercial:_v('mant-impacto')||'—',
+      agro_equipos:{nombre:eq?eq.nombre:'Equipo',codigo:eq?eq.codigo:'—'}});
+    showToast('✅ Mantenimiento registrado (local)');
+    document.getElementById('modal-mant').style.display='none';
+    loadMantenimiento();
+  }
+}
+
+function openBomModal(){
+  document.getElementById('modal-bom').style.display='flex';
+}
+async function saveBOM(){
+  var sku=_v('bom-sku-codigo');
+  var skuNombre=_v('bom-sku-nombre');
+  var comp=_v('bom-componente');
+  var cant=_n('bom-cantidad');
+  if(!sku||!skuNombre||!comp||!cant){showToast('⚠ Completa los campos obligatorios','#ef4444');return;}
+  var r=await db.from('agro_bom_maestro').insert(_clean({
+    sku_codigo:sku, sku_nombre:skuNombre,
+    proceso_tipo:_v('bom-proceso'),
+    componente:comp,
+    tipo_componente:_v('bom-tipo-comp'),
+    cantidad_por_kg:cant,
+    unidad:_v('bom-unidad'),
+    merma_tecnica_pct:_n('bom-merma')||0,
+    costo_unitario:_n('bom-costo'),
+    activo:true, tenant_id:'hidroexpo'
+  }));
+  if(!r.error){
+    showToast('✅ Componente BOM registrado');
+    document.getElementById('modal-bom').style.display='none';
+    loadBOM();
+    addAudit('crear','bom','BOM '+sku+' → '+comp);
+  } else {
+    SIM.bom.push({bom_id:'sim-bom-'+Date.now(),sku_codigo:sku,sku_nombre:skuNombre,
+      proceso_tipo:_v('bom-proceso'),componente:comp,tipo_componente:_v('bom-tipo-comp'),
+      cantidad_por_kg:cant,unidad:_v('bom-unidad'),merma_tecnica_pct:_n('bom-merma')||0,
+      costo_unitario:_n('bom-costo'),activo:true});
+    showToast('✅ Componente registrado (local)');
+    document.getElementById('modal-bom').style.display='none';
+    loadBOM();
+  }
+}
+
+function openInsumoModal(){
+  document.getElementById('modal-insumo').style.display='flex';
+}
+async function saveInsumo(){
+  var nombre=_v('ins-nombre');
+  var stock=_n('ins-stock');
+  var codigo=_v('ins-codigo')||('INS-'+Date.now().toString().slice(-4));
+  if(!nombre||stock===null){showToast('⚠ Completa nombre y stock','#ef4444');return;}
+  var stMin=_n('ins-stock-min')||0;
+  var stReorden=_n('ins-reorden')||0;
+  var costo=_n('ins-costo');
+  var r=await db.from('agro_inventario_insumos').insert(_clean({
+    codigo:codigo, nombre:nombre,
+    categoria:_v('ins-cat'), subcategoria:_v('ins-subcat')||null,
+    unidad:_v('ins-unidad'),
+    stock_actual:stock, stock_minimo:stMin,
+    punto_reorden:stReorden,
+    costo_unitario:costo,
+    proveedor_principal:_v('ins-proveedor')||null,
+    lead_time_dias:parseInt(_v('ins-lead'))||7,
+    estado:stock<stMin?'critico':stock<stReorden?'bajo':'ok',
+    tenant_id:'hidroexpo'
+  }));
+  if(!r.error){
+    showToast('✅ Insumo registrado');
+    document.getElementById('modal-insumo').style.display='none';
+    loadInsumos();
+    addAudit('crear','insumos','Nuevo insumo: '+codigo+' '+nombre);
+  } else {
+    // Add to SIM data locally
+    SIM.insumos.push({insumo_id:'sim-ins-new-'+Date.now(),codigo:codigo,nombre:nombre,
+      categoria:_v('ins-cat'),unidad:_v('ins-unidad'),stock_actual:stock,
+      stock_minimo:stMin,punto_reorden:stReorden,costo_unitario:costo,
+      proveedor_principal:_v('ins-proveedor')||'—',lead_time_dias:parseInt(_v('ins-lead'))||7,
+      estado:stock<stMin?'critico':stock<stReorden?'bajo':'ok'});
+    showToast('✅ Insumo registrado (local)');
+    document.getElementById('modal-insumo').style.display='none';
+    loadInsumos();
+  }
+}
+
+var _ganttEditTask = null;
+function openGanttById(idx){
+  _ganttEditTask = GANTT[idx];
+  openGanttEdit(_ganttEditTask&&_ganttEditTask.gantt_id);
+}
+function openGanttEdit(ganttId){
+  if(typeof ganttId==='number'){_ganttEditTask=GANTT[ganttId];}
+  else {_ganttEditTask = GANTT.find(function(g){return g.gantt_id===ganttId;});}
+  if(!_ganttEditTask)return;
+  var t=_ganttEditTask;
+  document.getElementById('ge-tarea').textContent = t.tarea + ' · ' + (t.agro_ordenes_produccion&&t.agro_ordenes_produccion.op_codigo||'');
+  document.getElementById('ge-avance').value = t.avance_pct||0;
+  document.getElementById('ge-avance-num').textContent = (t.avance_pct||0)+'%';
+  document.getElementById('ge-estado').value = t.estado||'pendiente';
+  document.getElementById('ge-responsable').value = t.responsable||'';
+  document.getElementById('ge-critica').checked = !!t.es_critica;
+  document.getElementById('modal-gantt').style.display='flex';
+}
+async function saveGanttEdit(){
+  if(!_ganttEditTask)return;
+  var avance=parseInt(document.getElementById('ge-avance').value)||0;
+  var estado=_v('ge-estado');
+  var responsable=_v('ge-responsable');
+  var critica=document.getElementById('ge-critica').checked;
+  // Auto-set estado based on avance
+  if(avance===100)estado='completado';
+  else if(avance>0&&estado==='pendiente')estado='en_curso';
+  // Color by estado
+  var colorMap={completado:'#22c55e',en_curso:'#f59e0b',retrasado:'#ef4444',pendiente:'#2563eb'};
+  var color=colorMap[estado]||'#2563eb';
+  var r=await db.from('agro_gantt_produccion').update(_clean({
+    avance_pct:avance, estado:estado,
+    responsable:responsable||null, es_critica:critica, color_hex:color
+  })).eq('gantt_id',_ganttEditTask.gantt_id);
+  if(!r.error){
+    showToast('✅ Tarea actualizada');
+    document.getElementById('modal-gantt').style.display='none';
+    loadGantt();
+    addAudit('actualizar','gantt',_ganttEditTask.tarea+' → '+avance+'% '+estado);
+  } else {
+    // Update local SIM data too
+    _ganttEditTask.avance_pct=avance;_ganttEditTask.estado=estado;
+    _ganttEditTask.responsable=responsable;_ganttEditTask.es_critica=critica;
+    _ganttEditTask.color_hex=color;
+    showToast('✅ Actualizado (local)');
+    document.getElementById('modal-gantt').style.display='none';
+    loadGantt();
+  }
+}
+
 // ── SAFE READ HELPERS (prevent DataCloneError / structuredClone failure) ──
 function _v(id){var e=document.getElementById(id);return e?e.value:'';}
 function _n(id){var v=parseFloat(_v(id));return isNaN(v)?null:v;}
@@ -578,7 +912,7 @@ function go(sec){
     else n.classList.remove('on');
   });
   document.getElementById('topbar-title').textContent=TITLES[sec]||sec;
-  const loaders={ops:loadOPs,mp:loadMP,yield:function(){loadYield();setTimeout(loadOPsIntoYield,200);},gantt:loadGantt,calidad:loadCalidad,frio:loadFrio,insumos:loadInsumos,bom:loadBOM,equipos:loadEquipos,aprobaciones:loadAprobaciones,alertas:loadAlertas,audit:loadAudit};
+  const loaders={ops:loadOPs,mp:loadMP,yield:function(){loadYield();setTimeout(loadOPsIntoYield,200);},calidad:function(){loadCalidad();setTimeout(loadOPsIntoYield,200);},equipos:function(){loadEquipos();setTimeout(loadMantenimiento,200);},gantt:loadGantt,frio:loadFrio,insumos:loadInsumos,bom:loadBOM,aprobaciones:loadAprobaciones,alertas:loadAlertas,audit:loadAudit};
   if(loaders[sec])loaders[sec]();
   addAudit('consultar',sec,'Navegación a sección '+TITLES[sec]);
 }
@@ -786,7 +1120,20 @@ async function loadGantt(){
     tasks.forEach(t=>{
       const left=((new Date(t.fecha_inicio).getTime()-minT)/range*100).toFixed(1);
       const width=Math.max(5,((new Date(t.fecha_fin).getTime()-new Date(t.fecha_inicio).getTime())/range*100).toFixed(1));
-      html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;"><div style="width:130px;font-size:11px;font-weight:600;color:#64748b;text-align:right;flex-shrink:0;">${t.tarea}</div><div style="flex:1;position:relative;height:22px;background:#f1f5f9;border-radius:4px;"><div class="gantt-bar" style="position:absolute;left:${left}%;width:${width}%;background:${t.color_hex||'#2563eb'};">${t.avance_pct>0?t.avance_pct+'%':''}</div>${t.es_critica?'<div style="position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:10px;">⚡</div>':''}</div><span class="badge badge-${t.estado==='completado'?'ok':t.estado==='en_curso'?'blue':t.estado==='retrasado'?'crit':'gray'}" style="font-size:10px;flex-shrink:0;">${t.estado}</span></div>`;
+      (function(task,idx){
+  var sc=task.estado==='completado'?'ok':task.estado==='en_curso'?'blue':task.estado==='retrasado'?'crit':'gray';
+  var clk=' onclick="openGanttById('+idx+')" style="cursor:pointer;"';
+  html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">'+
+    '<div style="width:130px;font-size:11px;font-weight:600;color:#64748b;text-align:right;flex-shrink:0;"'+clk+'>'+task.tarea+'</div>'+
+    '<div style="flex:1;position:relative;height:26px;background:#f1f5f9;border-radius:5px;overflow:hidden;"'+clk+'>'+
+      '<div class="gantt-bar" style="position:absolute;left:'+left+'%;width:'+width+'%;background:'+(task.color_hex||'#2563eb')+';height:100%;border-radius:5px;">'+
+        (task.avance_pct>0?task.avance_pct+'%':'')+
+      '</div>'+
+    '</div>'+
+    (task.es_critica?'<span style="font-size:11px;">⚡</span>':'')+
+    '<span class="badge badge-'+sc+'" style="font-size:10px;flex-shrink:0;"'+clk+'>'+task.estado+'</span>'+
+  '</div>';
+})(t,GANTT.indexOf(t));
     });
     html+='</div>';
   });
